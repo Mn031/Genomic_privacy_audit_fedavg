@@ -198,9 +198,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Federated Learning Genomic Privacy Audit - Vanilla FedAvg (arXiv:2603.08913v3)"
     )
-    parser.add_argument("--rounds", type=int, default=5, help="Number of FL communication rounds (default: 5)")
+    parser.add_argument("--rounds", type=int, default=50, help="Number of FL communication rounds (default: 50)")
     parser.add_argument("--clients", type=int, default=10, help="Number of simulated FL clients (default: 10)")
-    parser.add_argument("--local-epochs", type=int, default=1, help="Local training epochs per client round (default: 1)")
+    parser.add_argument("--local-epochs", type=int, default=5, help="Local training epochs per client round (default: 5)")
     parser.add_argument("--batch-size", type=int, default=16, help="Training batch size (default: 16)")
     parser.add_argument("--lr", type=float, default=0.0005, help="Learning rate for Adam optimizer (default: 0.0005)")
     parser.add_argument("--beam-width", type=int, default=10, help="Beam width for Vector 1 extraction (default: 10)")
@@ -216,6 +216,7 @@ def main() -> None:
     print("=" * 80)
     print(" GENOMIC PRIVACY AUDIT: 10-CLIENT VANILLA FEDAVG SIMULATION")
     print(" Framework: Quantifying Memorization and Privacy Risks (arXiv:2603.08913v3)")
+    print(" Benchmark Dataset: Real Biological DNA (GUE prom_300_all)")
     print(" Target Configuration: Client 9 Canary Injection vs. Clients 0-8 Clean Baselines")
     print("=" * 80)
 
@@ -223,7 +224,7 @@ def main() -> None:
     set_deterministic_seeds(args.seed)
 
     # 2. Genomic Dataset & Canary Generation
-    print("\n[Step 1/5] Synthesizing Zero-Order Genomic Corpus & Partitioning across FL Clients...")
+    print("\n[Step 1/5] Loading Real Biological Genomic Corpus (GUE prom_300_all) & Partitioning...")
     tokenizer, client_loaders, test_loader, canaries, train_seqs, test_seqs = get_genomic_dataloaders(
         num_clients=args.clients,
         num_train=1000,
@@ -233,7 +234,7 @@ def main() -> None:
         seed=args.seed,
     )
 
-    print(f"    - Training Corpus: 1,000 sequences of 256 nt (50% GC content)")
+    print(f"    - Training Corpus: 1,000 biological sequences of 256 nt (GUE benchmark)")
     print(f"    - Held-out Test Split: 200 sequences of 256 nt")
     print(f"    - Clients 0-8: Clean background genomic sequences (100 seqs each, 0 canaries)")
     print(f"    - Client 9: TARGET CLIENT hosting all 100 canaries across 4 tiers:")

@@ -23,9 +23,10 @@ This benchmark establishes a controlled, reproducible environment to quantify th
                                                   |
                                                   v
                       +-------------------------------------------------------+
-                      | Synthetic Zero-Order Genomic Dataset                  |
+                      | Real Biological Genomic Dataset (GUE Benchmark)       |
+                      | prom_300_all Promoter Subset via Hugging Face         |
                       | 1,000 Train Seqs (256 nt each) + 200 Held-out Test    |
-                      | Balanced 50% GC Content, Independent Identical Base   |
+                      | Real Eukaryotic Promoter Sequences Center-Cropped     |
                       +-------------------------------------------------------+
                                                   |
                                                   v
@@ -44,6 +45,7 @@ This benchmark establishes a controlled, reproducible environment to quantify th
                       | Model: SimpleDNALM (4 Causal Transformer Layers)      |
                       | Parameters: L = 12,745,728 (~12.6M params)            |
                       | Optimization: Adam (lr=0.0005), CE Loss (ignore_idx=0)|
+                      | Aggressive Overfitting: 50 Rounds, 5 Local Epochs     |
                       +-------------------------------------------------------+
                                                   |
                                                   v
@@ -77,12 +79,12 @@ This benchmark establishes a controlled, reproducible environment to quantify th
 
 ## 2. Directory Architecture
 
-The `fedavg/` directory is completely standalone and contains all necessary files for dataset synthesis, neural model definition, privacy attack execution, and Flower federated orchestration:
+The `fedavg/` directory is completely standalone and contains all necessary files for dataset loading, neural model definition, privacy attack execution, and Flower federated orchestration:
 
 ```
 d:\MTP\Genomic_privacy_audit\fedavg\
 ├── __init__.py           # Clean package exports
-├── dataset.py           # Zero-order generation, DNATokenizer, client_9 canary injection
+├── dataset.py           # Real GUE prom_300_all loader, DNATokenizer, client_9 canary injection
 ├── model.py             # SimpleDNALM: 4 Causal Transformer blocks (~12.6M params)
 ├── attack.py            # Three-Vector Attack Suite: Extraction, Perplexity, LiRA MIA
 ├── main.py              # 10-Client Flower FedAvg orchestration & audit reporting
@@ -91,16 +93,16 @@ d:\MTP\Genomic_privacy_audit\fedavg\
 
 ---
 
-## 3. Genomic Dataset & Canary Injection Scheme (`dataset.py`)
+## 3. Real Biological Dataset (GUE Benchmark) & Canary Injection (`dataset.py`)
 
-### A. Zero-Order Genomic Baseline & Tokenization
-To evaluate pure memorization dynamics without confounding biological motifs or high-order k-mer priors, the corpus is sampled from a synthetic zero-order genomic distribution:
-- **Base Probabilities**: $P(A) = P(T) = P(C) = P(G) = 0.25$, yielding an exact balanced $50\%$ GC content.
-- **Sequence Length**: Fixed length of $L = 256$ nucleotides per sequence.
-- **Corpus Sizing**: 1,000 baseline training sequences partitioned across 10 clients (100 sequences/client) and 200 held-out test sequences.
+### A. Real Biological Sequences (GUE `prom_300_all` Subset)
+To evaluate realistic memorization dynamics in natural DNA containing biological motifs (promoters, transcription factor binding sites, TATA boxes, and CpG islands), the synthetic generator has been replaced with the **Genomic Understanding Evaluation (GUE)** benchmark (`prom_300_all` subset) via Hugging Face `datasets`:
+- **Source**: Eukaryotic/human promoter sequences standardized to ~300 base pairs.
+- **Sequence Processing**: Each sequence is standardized to exactly $L = 256$ nucleotides via center-cropping or padding (`process_sequence_to_length`).
+- **Corpus Sizing**: 1,000 baseline biological training sequences partitioned across 10 clients (100 sequences/client) and 200 held-out biological test sequences.
 - **Discrete Genomic Tokenizer (`DNATokenizer`)**: 8-token character-level vocabulary:
   - `0`: `<PAD>` (Padding token, ignored in cross-entropy loss)
-  - `1`: `<UNK>` (Unknown nucleotide)
+  - `1`: `<UNK>` (Unknown nucleotide / 'N')
   - `2`: `<BOS>` (Beginning of sequence)
   - `3`: `<EOS>` (End of sequence)
   - `4`: `A` (Adenine)
@@ -108,7 +110,21 @@ To evaluate pure memorization dynamics without confounding biological motifs or 
   - `6`: `G` (Guanine)
   - `7`: `T` (Thymine)
 
-### B. Repetition Tiers & Client 9 Canary Isolation
+### B. Hugging Face Authentication Setup
+Some Hugging Face genomic mirrors and checkpoints require user authentication. `dataset.py` includes automatic token discovery:
+1. **Environment Variable**: Checks `HF_TOKEN`.
+2. **File Fallback**: Reads `hugging_face_token.txt` located in the project root.
+
+To set your token in the terminal before running:
+```powershell
+# PowerShell (Windows)
+$env:HF_TOKEN = "your_hf_token_here"
+
+# Bash / Zsh (Linux / macOS)
+export HF_TOKEN="your_hf_token_here"
+```
+
+### C. Repetition Tiers & Client 9 Canary Isolation
 - **Canary Generation**: Exactly 100 distinct synthetic 64-nucleotide canaries sampled with $50\%$ GC content.
 - **Stratified Repetition Tiers**: The 100 canaries are partitioned into four distinct frequency tiers:
   - **Tier 1** (1 duplicate copy): 25 canaries ($25 \times 1 = 25$ copies)
@@ -118,8 +134,8 @@ To evaluate pure memorization dynamics without confounding biological motifs or 
   - **Total Copies**: $25 + 125 + 250 + 500 = 900$ canary instances.
 - **Client 9 Exclusive Host Partition**:
   - All 900 canary copies are injected **strictly into `client_9`'s training split**.
-  - Each canary copy is embedded into a 256-nt sequence (at a uniformly random offset between 0 and 192, flanked by zero-order background nucleotides) without overwriting or collisions.
-  - `client_0` through `client_8` receive **100% clean baseline sequences** ($0/100$ canary hits).
+  - Each canary copy is embedded into a real 256-nt GUE host sequence (at a uniformly random offset between 0 and 192) without overwriting or collisions.
+  - `client_0` through `client_8` receive **100% clean biological GUE baseline sequences** ($0/100$ canary hits).
   - The held-out test split receives **zero canaries** ($0/100$ canary hits).
 - **Causal LM Target Construction**: For sequence token IDs $[t_0, t_1, \dots, t_{L-1}]$, input is $x = [t_0, \dots, t_{L-2}]$ and target is $y = [t_1, \dots, t_{L-1}]$.
 
@@ -203,25 +219,29 @@ This guarantees a consistent, comparable baseline bounded in $[0, 1]$ sharing a 
 
 ## 7. Execution Guide & CLI Commands
 
+> [!IMPORTANT]
+> **Hyperparameter Optimization for Demonstrable Overfitting**:
+> The defaults are configured with `--rounds 50` and `--local-epochs 5` (at `--batch-size 16`). This ensures the model performs sufficient optimization steps on real biological promoter sequences to converge and trigger measurable memorization and canary extraction.
+
 ### Direct Script Invocation
 ```powershell
 cd d:\MTP\Genomic_privacy_audit\fedavg
-python main.py --rounds 5 --clients 10 --local-epochs 1 --batch-size 16 --lr 0.0005 --beam-width 10
+python main.py --rounds 50 --clients 10 --local-epochs 5 --batch-size 16 --lr 0.0005 --beam-width 10
 ```
 
 ### Module Invocation from Project Root
 ```powershell
 cd d:\MTP
-python -m Genomic_privacy_audit.fedavg.main --rounds 5 --clients 10 --batch-size 16
+python -m Genomic_privacy_audit.fedavg.main --rounds 50 --clients 10 --local-epochs 5 --batch-size 16
 ```
 
 ### Command-Line Arguments Reference
 
 | Argument | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `--rounds` | `int` | `5` | Number of Federated Learning communication rounds |
+| `--rounds` | `int` | `50` | Number of Federated Learning communication rounds (upgraded to force convergence) |
 | `--clients` | `int` | `10` | Number of simulated FL clients |
-| `--local-epochs` | `int` | `1` | Local optimization epochs per client per round |
+| `--local-epochs` | `int` | `5` | Local optimization epochs per client per round (upgraded to force overfitting) |
 | `--batch-size` | `int` | `16` | Mini-batch size for client DataLoaders |
 | `--lr` | `float` | `0.0005` | Learning rate for Adam optimizer |
 | `--beam-width` | `int` | `10` | Beam width for Vector 1 Sequence Extraction |
@@ -232,7 +252,7 @@ python -m Genomic_privacy_audit.fedavg.main --rounds 5 --clients 10 --batch-size
 
 ## 8. Empirical Test Run & Quantitative Privacy Audit Results
 
-The following benchmark run was executed across 10 clients on the zero-order genomic dataset with 100 confidential canaries injected exclusively into `client_9`:
+The following benchmark demonstrates the initial baseline run executed across 10 clients with 100 confidential canaries injected exclusively into `client_9`:
 
 ```powershell
 python -m Genomic_privacy_audit.fedavg.main --rounds 3 --batch-size 32
