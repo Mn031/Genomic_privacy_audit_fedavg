@@ -230,7 +230,93 @@ python -m Genomic_privacy_audit.fedavg.main --rounds 5 --clients 10 --batch-size
 
 ---
 
-## 8. Extension Guide: HuggingFace Foundation Models
+## 8. Empirical Test Run & Quantitative Privacy Audit Results
+
+The following benchmark run was executed across 10 clients on the zero-order genomic dataset with 100 confidential canaries injected exclusively into `client_9`:
+
+```powershell
+python -m Genomic_privacy_audit.fedavg.main --rounds 3 --batch-size 32
+```
+
+### A. Federated Training Convergence Log
+
+```text
+================================================================================
+ GENOMIC PRIVACY AUDIT: 10-CLIENT VANILLA FEDAVG SIMULATION
+ Framework: Quantifying Memorization and Privacy Risks (arXiv:2603.08913v3)
+ Target Configuration: Client 9 Canary Injection vs. Clients 0-8 Clean Baselines
+================================================================================
+
+[Step 1/5] Synthesizing Zero-Order Genomic Corpus & Partitioning across FL Clients...
+    - Training Corpus: 1,000 sequences of 256 nt (50% GC content)
+    - Held-out Test Split: 200 sequences of 256 nt
+    - Clients 0-8: Clean background genomic sequences (100 seqs each, 0 canaries)
+    - Client 9: TARGET CLIENT hosting all 100 canaries across 4 tiers:
+        * Tier  1 ( 1 repeats): 25 canaries (25 total copies)
+        * Tier  5 ( 5 repeats): 25 canaries (125 total copies)
+        * Tier 10 (10 repeats): 25 canaries (250 total copies)
+        * Tier 20 (20 repeats): 25 canaries (500 total copies)
+
+[Step 2/5] Initializing SimpleDNALM Architecture (Causal Transformer Baseline)...
+    - Transformer Layers: 4 (Multi-Head Causal Self-Attention, n_heads=8)
+    - Hidden Dimension d_model: 512 | Feedforward Dimension d_ff: 2048
+    - Activation: GELU | Dropout: 0.05 | Causal Masking: Enabled
+    - Total Parameters L = 12,745,728
+
+[Step 3/5] Starting Federated Learning Simulation (3 Rounds, FedAvg)...
+    -> [Round 1/3] FedAvg Aggregation Complete | Mean Loss: 2.5016 | Client 9 Loss: 1.3890
+    -> [Round 2/3] FedAvg Aggregation Complete | Mean Loss: 1.5249 | Client 9 Loss: 1.3881
+    -> [Round 3/3] FedAvg Aggregation Complete | Mean Loss: 1.4778 | Client 9 Loss: 1.3870
+
+[OK] Federated Learning simulation completed successfully.
+[Step 4/5] Extracting Global Model Weights from FedAvg...
+[OK] Global SimpleDNALM model synchronized and ready for multi-vector audit.
+```
+
+### B. Multi-Vector Privacy Audit Report
+
+```text
+==========================================================================================
+      GENOMIC PRIVACY AUDIT: MULTI-VECTOR QUANTIFICATION (arXiv:2603.08913v3)
+==========================================================================================
+Maximum Vulnerability Score S_config = max(s_ppl, s_ext, s_mia) : 0.0714
+  * Vector 1 (Sequence Extraction Rate s_ext)                 : 0.0000 (0.0%)
+  * Vector 2 (Normalized Perplexity Score s_ppl)               : 0.0000
+  * Vector 3 (Rescaled Membership Inference Score s_mia)       : 0.0714 (AUC: 0.5357)
+------------------------------------------------------------------------------------------
+
+ [VECTOR 1] CANARY EXTRACTION SUCCESS BY REPETITION TIER (Target: Client 9):
+Tier       | Duplicates   | Canaries   | Extracted   | Success Rate   | Mean Exposure
+------------------------------------------------------------------------------------------
+Tier 1     | 1            | 25         | 0           |    0.0%       |  0.00 / 64 bits
+Tier 5     | 5            | 25         | 0           |    0.0%       |  0.00 / 64 bits
+Tier 10    | 10           | 25         | 0           |    0.0%       |  0.00 / 64 bits
+Tier 20    | 20           | 25         | 0           |    0.0%       |  0.00 / 64 bits
+Overall    | --           | 100        | 0           |    0.0%       |  0.00 / 64 bits
+
+ [VECTOR 2] PERPLEXITY-BASED DETECTION & MEMORIZATION GAP:
+  - Training Population Perplexity (PP_train) : 4.01
+  - Held-out Test Perplexity       (PP_test)  : 4.01
+  - Canary Population Perplexity   (PP_canary): 4.01
+  - Memorization Gap Ratio (PP_test / PP_canary): 1.00x
+  - Normalized Perplexity Score s_ppl        : 0.0000
+
+ [VECTOR 3] MEMBERSHIP INFERENCE ATTACK (LiRA):
+  - Member Loss Fit     : N(mu=1.3887, sigma=0.0043)
+  - Non-Member Loss Fit : N(mu=1.3884, sigma=0.0040)
+  - Likelihood Ratio AUC-ROC                 : 0.5357
+  - Rescaled MIA Score s_mia = 2*(AUC - 0.5)  : 0.0714
+
+==========================================================================================
+ Mathematical Formulation:
+ -> S_config = max(s_ppl, s_ext, s_mia) unifies privacy risk into a single worst-case
+    metric bounded in [0, 1] sharing a common zero point across all threat vectors.
+==========================================================================================
+```
+
+---
+
+## 9. Extension Guide: HuggingFace Foundation Models
 
 The modular architecture of `attack.py` and `model.py` is model-agnostic and directly accepts any autoregressive genomic foundation model.
 
@@ -293,7 +379,7 @@ def load_evo():
 
 ---
 
-## 9. Extension Guide: Real Biological Genomes (FASTA Parsing)
+## 10. Extension Guide: Real Biological Genomes (FASTA Parsing)
 
 To replace synthetic zero-order sequences with biological genomes (e.g. *Escherichia coli* K-12 or *Saccharomyces cerevisiae* / Yeast):
 

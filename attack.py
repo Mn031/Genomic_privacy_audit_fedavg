@@ -78,15 +78,16 @@ def beam_search_canary_extraction(
     for step in range(max_tokens):
         candidates: List[Tuple[float, List[int]]] = []
 
-        for log_prob, seq_ids in beams:
-            inp_tensor = torch.tensor([seq_ids], dtype=torch.long, device=device)
-            with torch.no_grad():
-                logits, _ = model(inp_tensor)
-                next_token_logits = logits[0, -1, :]
-                log_probs = F.log_softmax(next_token_logits, dim=-1)
+        # Batched forward pass across all active beam hypotheses
+        inp_tensor = torch.tensor([seq_ids for _, seq_ids in beams], dtype=torch.long, device=device)
+        with torch.no_grad():
+            logits, _ = model(inp_tensor)
+            next_token_logits = logits[:, -1, :]
+            log_probs = F.log_softmax(next_token_logits, dim=-1)
 
+        for b_idx, (log_prob, seq_ids) in enumerate(beams):
             for token_id in nuc_token_ids:
-                cand_log_prob = log_prob + float(log_probs[token_id].item())
+                cand_log_prob = log_prob + float(log_probs[b_idx, token_id].item())
                 cand_ids = seq_ids + [token_id]
                 candidates.append((cand_log_prob, cand_ids))
 
