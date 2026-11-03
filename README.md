@@ -83,11 +83,13 @@ The `fedavg/` directory is completely standalone and contains all necessary file
 
 ```
 d:\MTP\Genomic_privacy_audit\fedavg\
+├── requirements.txt      # Project dependencies (torch, flwr, datasets, scikit-learn, etc.)
 ├── __init__.py           # Clean package exports
 ├── dataset.py           # Real GUE prom_300_all loader, DNATokenizer, client_9 canary injection
 ├── model.py             # SimpleDNALM: 4 Causal Transformer blocks (~12.6M params)
 ├── attack.py            # Three-Vector Attack Suite: Extraction, Perplexity, LiRA MIA
 ├── main.py              # 10-Client Flower FedAvg orchestration & audit reporting
+├── fedavg_simulation.log # Automated terminal execution log file
 └── README.md            # Comprehensive documentation & foundation model guide
 ```
 
@@ -217,22 +219,93 @@ This guarantees a consistent, comparable baseline bounded in $[0, 1]$ sharing a 
 
 ---
 
-## 7. Execution Guide & CLI Commands
+## 7. Experiment Replication Guide & Execution
+
+Follow these step-by-step instructions to replicate the entire Federated Learning genomic privacy audit experiment from scratch and capture all terminal output.
+
+### Step 1: Environment Setup & Install Dependencies
+
+Create and activate a virtual environment, then install dependencies from `requirements.txt`:
+
+```powershell
+# Navigate to the fedavg directory
+cd d:\MTP\Genomic_privacy_audit\fedavg
+
+# Optional: Create and activate virtual environment
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# Install requirements
+pip install -r requirements.txt
+```
+
+*(On Linux / macOS, use `source venv/bin/activate`)*
+
+### Step 2: Hugging Face Authentication Setup (Token Configuration)
+
+This benchmark fetches the `prom_300_all` subset of the Genomic Understanding Evaluation (GUE) benchmark via Hugging Face `datasets`. Some mirrors require authentication:
+
+```powershell
+# PowerShell (Windows)
+$env:HF_TOKEN = "your_hf_token_here"
+
+# Bash / Zsh (Linux / macOS)
+export HF_TOKEN="your_hf_token_here"
+```
+
+> [!TIP]
+> A valid Hugging Face token is provided in [`d:\MTP\hugging_face_token.txt`](file:///d:/MTP/hugging_face_token.txt). You can copy the token from that file or source it directly. `dataset.py` also automatically checks for `hugging_face_token.txt` at the repository root if `$env:HF_TOKEN` is unset.
+
+### Step 3: Run the Experiment & Write Terminal Logs to File
 
 > [!IMPORTANT]
 > **Hyperparameter Optimization for Demonstrable Overfitting**:
 > The defaults are configured with `--rounds 50` and `--local-epochs 5` (at `--batch-size 16`). This ensures the model performs sufficient optimization steps on real biological promoter sequences to converge and trigger measurable memorization and canary extraction.
 
-### Direct Script Invocation
+The simulation automatically records all console output into a persistent log file (`fedavg_simulation.log`) using an integrated real-time `TeeLogger`.
+
+#### Option A: Built-in Automatic Logging (Default)
+Simply run the script. Output is displayed in the terminal and simultaneously saved to `fedavg_simulation.log`:
+
 ```powershell
 cd d:\MTP\Genomic_privacy_audit\fedavg
-python main.py --rounds 50 --clients 10 --local-epochs 5 --batch-size 16 --lr 0.0005 --beam-width 10
+python main.py
 ```
 
-### Module Invocation from Project Root
+#### Option B: Custom Log File Path via CLI
+To specify a custom log file destination:
+
+```powershell
+python main.py --log-file "custom_fedavg_run.log" --rounds 50 --clients 10 --local-epochs 5 --batch-size 16
+```
+
+#### Option C: Shell-Level Redirection & Piping
+You can also pipe the execution output using standard terminal utilities:
+
+```powershell
+# Windows PowerShell (Live terminal view + file output)
+python main.py 2>&1 | Tee-Object -FilePath "fedavg_simulation.log"
+
+# Linux / macOS (Live terminal view + file output)
+python main.py 2>&1 | tee fedavg_simulation.log
+```
+
+#### Option D: Module Invocation from Project Root
 ```powershell
 cd d:\MTP
 python -m Genomic_privacy_audit.fedavg.main --rounds 50 --clients 10 --local-epochs 5 --batch-size 16
+```
+
+### Step 4: Reading Terminal Logs Later
+
+To inspect the saved execution log at any time:
+
+```powershell
+# Windows PowerShell
+Get-Content fedavg_simulation.log -Tail 60
+
+# Linux / macOS
+tail -n 60 fedavg_simulation.log
 ```
 
 ### Command-Line Arguments Reference
@@ -245,6 +318,7 @@ python -m Genomic_privacy_audit.fedavg.main --rounds 50 --clients 10 --local-epo
 | `--batch-size` | `int` | `16` | Mini-batch size for client DataLoaders |
 | `--lr` | `float` | `0.0005` | Learning rate for Adam optimizer |
 | `--beam-width` | `int` | `10` | Beam width for Vector 1 Sequence Extraction |
+| `--log-file` | `str` | `fedavg_simulation.log` | Path to automatically write all terminal output to file |
 | `--seed` | `int` | `42` | Deterministic random seed for reproducibility |
 | `--device` | `str` | `cuda`/`cpu`| Compute device (`cpu` or `cuda`) |
 
